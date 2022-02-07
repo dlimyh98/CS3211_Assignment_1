@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Check compilation",
+      "setup": "sudo bash -c 'apt-get update && apt-get install -y libc++-11-dev libc++abi-11-dev'",
+      "run": "CXXFLAGS=-stdlib=libc++ make CC=clang-11 CXX=clang++-11 && test -x engine",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    }
+  ]
+}
