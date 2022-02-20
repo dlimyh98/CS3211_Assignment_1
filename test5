@@ -1,0 +1,13 @@
+./engine socket &
+
+for file in ./test5_files/*
+do
+bash $file | ./client socket &
+pids[${i+1}]=$!
+done
+
+for pid in ${pids[*]}; do
+wait $pid
+done
+
+killall engine

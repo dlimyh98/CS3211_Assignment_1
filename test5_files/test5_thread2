@@ -1,0 +1,3 @@
+sleep .5
+echo B 203 AMZN 3290 10
+echo B 204 AMZN 3290 5
