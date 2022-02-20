@@ -81,7 +81,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
             buy_order.price >= sell_order.price) {
 
             std::cout << "Match found." << std::endl;
-            buy_map.at(buy_order.order_id) += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
+            buy_map[buy_order.order_id] += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
 
             if (sell_order.count > buy_order.count) {
                 Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
@@ -147,7 +147,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
             buy_order.price >= sell_order.price) {
 
             std::cout << "Match found." << std::endl;
-            sell_map.at(sell_order.order_id) += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
+            sell_map[sell_order.order_id] += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
 
             if (buy_order.count > sell_order.count) {
                 Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
