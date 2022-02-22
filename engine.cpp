@@ -63,15 +63,7 @@ void Engine::ConnectionThread(ClientConnection connection) {
 }
 
 void Engine::trySell(input sell_order, int64_t input_time) {
-    std::unique_lock<std::mutex> producerLock(producer_mutex);
-
-    // checking if a particular Sell Order is being registered for the FIRST TIME
-    for (input& i : sell_vector) {
-        if (i.order_id == sell_order.order_id) {
-            sell_map.insert({ sell_order.order_id, 0 });
-            break;
-        }
-    }
+    std::unique_lock<std::mutex> sellLock(sell_mutex);
 
     // Matching sell_order to all possible buy_orders
     for (input& buy_order : buy_vector) {
@@ -84,6 +76,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
             buy_map[buy_order.order_id] += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
 
             if (sell_order.count > buy_order.count) {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
                     sell_order.price, buy_order.count, input_time, CurrentTimestamp());
 
@@ -91,6 +84,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
                 buy_order.count = 0;
             }
             else if (sell_order.count == buy_order.count) {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
                     sell_order.price, buy_order.count, input_time, CurrentTimestamp());
 
@@ -98,6 +92,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
                 return;
             }
             else {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
                     sell_order.price, sell_order.count, input_time, CurrentTimestamp());
 
@@ -118,26 +113,30 @@ void Engine::trySell(input sell_order, int64_t input_time) {
         }
     }
 
+    sellLock.unlock();
     std::cout << "Storing remainder..." << std::endl;
+    std::unique_lock<std::mutex> buyLock(buy_mutex);
+
+    // Checking if a particular Sell Order is being registered for the FIRST TIME
+    for (input& i : sell_vector) {
+        if (i.order_id == sell_order.order_id) {
+            sell_map.insert({ sell_order.order_id, 0 });
+            break;
+        }
+    }
 
     // Insert into position
     sell_vector.insert(std::lower_bound(sell_vector.begin(), sell_vector.end(), sell_order, comparePriceAsc), sell_order);
+    buyLock.unlock();
 
+    std::unique_lock<std::mutex> printLock(print_mutex);
     Output::OrderAdded(sell_order.order_id, sell_order.instrument, sell_order.price,
         sell_order.count, true,
         input_time, CurrentTimestamp());
 }
 
 void Engine::tryBuy(input buy_order, int64_t input_time) {
-    std::unique_lock<std::mutex> consumerLock(consumer_mutex);
-
-    // checking if a particular Buy Order is being registered for the FIRST TIME
-    for (input& i : buy_vector) {
-        if (i.order_id == buy_order.order_id) {
-            buy_map.insert({ buy_order.order_id, 0 });
-            break;
-        }
-    }
+    std::unique_lock<std::mutex> buyLock(buy_mutex);
 
     // Matching buy_order to all possible sell_orders
     for (input& sell_order : sell_vector) {
@@ -150,6 +149,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
             sell_map[sell_order.order_id] += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
 
             if (buy_order.count > sell_order.count) {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
                     sell_order.price, sell_order.count, input_time, CurrentTimestamp());
 
@@ -157,6 +157,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
                 sell_order.count = 0;
             }
             else if (buy_order.count == sell_order.count) {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
                     sell_order.price, sell_order.count, input_time, CurrentTimestamp());
 
@@ -164,6 +165,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
                 return;
             }
             else {
+                std::unique_lock<std::mutex> printLock(print_mutex);
                 Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
                     sell_order.price, buy_order.count, input_time, CurrentTimestamp());
 
@@ -184,11 +186,23 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
         }
     }
 
+    buyLock.unlock();
     std::cout << "Storing remainder..." << std::endl;
+    std::unique_lock<std::mutex> sellLock(sell_mutex);
+
+    // Checking if a particular Buy Order is being registered for the FIRST TIME
+    for (input& i : buy_vector) {
+        if (i.order_id == buy_order.order_id) {
+            buy_map.insert({ buy_order.order_id, 0 });
+            break;
+        }
+    }
 
     // Insert into position
     buy_vector.insert(std::upper_bound(buy_vector.begin(), buy_vector.end(), buy_order, comparePriceDesc), buy_order);
+    sellLock.unlock();
 
+    std::unique_lock<std::mutex> printLock(print_mutex);
     Output::OrderAdded(buy_order.order_id, buy_order.instrument, buy_order.price,
         buy_order.count, false,
         input_time, CurrentTimestamp());

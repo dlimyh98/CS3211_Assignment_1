@@ -11,6 +11,7 @@ SRCS = main.c engine.cpp io.cpp
 engine: $(SRCS:%=%.o)
 	$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
+client: CFLAGS := -g -O3 -Wall -Wextra -pedantic -Werror -std=c18 -pthread
 client: client.c.o
 	$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@
 

@@ -29,9 +29,9 @@ class Engine {
   void tryBuy(input buy_order, int64_t input_time);
   void tryCancel(input cancel_order, int64_t input_time);
 
-  std::mutex producer_mutex;
-  std::mutex consumer_mutex;
-  std::mutex producer_consumer_mutex;
+  std::mutex sell_mutex;
+  std::mutex buy_mutex;
+  std::mutex print_mutex;
 };
 
 inline static std::chrono::microseconds::rep CurrentTimestamp() noexcept {
