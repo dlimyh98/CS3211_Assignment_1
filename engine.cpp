@@ -8,7 +8,7 @@ void Engine::Accept(ClientConnection connection) {
     std::thread thread{ &Engine::ConnectionThread, this,
                        std::move(connection) };
     thread.detach();
-    std::cout << "New connection accepted." << std::endl;
+    //std::cout << "New connection accepted." << std::endl;
 }
 
 bool comparePriceAsc(input i1, input i2) {
@@ -37,23 +37,23 @@ void Engine::ConnectionThread(ClientConnection connection) {
         // provided in the Output class:
         switch (input.type) {
         case input_cancel:
-            std::cout << "Got cancel: ID: " << input.order_id << std::endl;
+            //std::cout << "Got cancel: ID: " << input.order_id << std::endl;
             tryCancel(input, input_time);
             break;
         case input_buy:
-            std::cout << "Got order: " << static_cast<char>(input.type) << " "
-                << input.instrument << " x " << input.count << " @ "
-                << input.price << " ID: " << input.order_id
-                << std::endl;
-            std::cout << "Comparing..." << std::endl;
+            //std::cout << "Got order: " << static_cast<char>(input.type) << " "
+            //    << input.instrument << " x " << input.count << " @ "
+            //    << input.price << " ID: " << input.order_id
+            //    << std::endl;
+            //std::cout << "Comparing..." << std::endl;
             tryBuy(input, input_time);
             break;
         case input_sell:
-            std::cout << "Got order: " << static_cast<char>(input.type) << " "
-                << input.instrument << " x " << input.count << " @ "
-                << input.price << " ID: " << input.order_id
-                << std::endl;
-            std::cout << "Comparing..." << std::endl;
+            //std::cout << "Got order: " << static_cast<char>(input.type) << " "
+            //    << input.instrument << " x " << input.count << " @ "
+            //    << input.price << " ID: " << input.order_id
+            //    << std::endl;
+            //std::cout << "Comparing..." << std::endl;
             trySell(input, input_time);
             break;
         default:
@@ -72,7 +72,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
             sell_order.count > 0 && buy_order.count > 0 &&
             buy_order.price >= sell_order.price) {
 
-            std::cout << "Match found." << std::endl;
+            //std::cout << "Match found." << std::endl;
             buy_map[buy_order.order_id] += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
 
             if (sell_order.count > buy_order.count) {
@@ -106,7 +106,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
     for (auto it = buy_vector.begin(); it != buy_vector.end();) {
         if (it->count == 0) {
             it = buy_vector.erase(it);
-            std::cout << "ERASE THE WEAK" << std::endl;
+            //std::cout << "ERASE THE WEAK" << std::endl;
         }
         else {
             ++it;
@@ -114,7 +114,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
     }
 
     sellLock.unlock();
-    std::cout << "Storing remainder..." << std::endl;
+    //std::cout << "Storing remainder..." << std::endl;
     std::unique_lock<std::mutex> buyLock(buy_mutex);
 
     // Checking if a particular Sell Order is being registered for the FIRST TIME
@@ -145,7 +145,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
             buy_order.count > 0 && sell_order.count > 0 &&
             buy_order.price >= sell_order.price) {
 
-            std::cout << "Match found." << std::endl;
+            //std::cout << "Match found." << std::endl;
             sell_map[sell_order.order_id] += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
 
             if (buy_order.count > sell_order.count) {
@@ -179,7 +179,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
     for (auto it = sell_vector.begin(); it != sell_vector.end();) {
         if (it->count == 0) {
             it = sell_vector.erase(it);
-            std::cout << "ERASE THE WEAK" << std::endl;
+            //std::cout << "ERASE THE WEAK" << std::endl;
         }
         else {
             ++it;
@@ -187,7 +187,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
     }
 
     buyLock.unlock();
-    std::cout << "Storing remainder..." << std::endl;
+    //std::cout << "Storing remainder..." << std::endl;
     std::unique_lock<std::mutex> sellLock(sell_mutex);
 
     // Checking if a particular Buy Order is being registered for the FIRST TIME
@@ -236,12 +236,12 @@ void Engine::tryCancel(input cancel_order, int64_t input_time) {
         }
     }
 
-    if (isSuccessful) {
-        std::cout << "Cancel successful." << std::endl;
-    }
-    else {
-        std::cout << "Cancel rejected." << std::endl;
-    }
+    //if (isSuccessful) {
+    //    std::cout << "Cancel successful." << std::endl;
+    //}
+    //else {
+    //    std::cout << "Cancel rejected." << std::endl;
+    //}
 
     Output::OrderDeleted(cancel_order.order_id, isSuccessful,
         input_time, CurrentTimestamp());
