@@ -13,15 +13,23 @@
 #include "io.h"
 #include <mutex>
 #include <queue>
-#include <condition_variable>
+
+class Node {
+public:
+    input i;
+    uint32_t exec_id;
+    std::mutex node_mutex;
+
+    Node(input input) {
+        this->i = input;
+        this->exec_id = 0;
+    }
+};
 
 class Engine {
   void ConnectionThread(ClientConnection);
-  std::vector<input> buy_vector;
-  std::vector<input> sell_vector;
-  std::unordered_map<uint32_t, int> buy_map;
-  std::unordered_map<uint32_t, int> sell_map;
-  std::condition_variable condition_var;
+  std::vector<Node> buy_vector;
+  std::vector<Node> sell_vector;
 
  public:
   void Accept(ClientConnection);
@@ -29,8 +37,9 @@ class Engine {
   void tryBuy(input buy_order, int64_t input_time);
   void tryCancel(input cancel_order, int64_t input_time);
 
-  std::mutex sell_mutex;
-  std::mutex buy_mutex;
+  input_type lastOrderType{input_cancel};
+
+  std::mutex switch_mutex;
   std::mutex print_mutex;
 };
 

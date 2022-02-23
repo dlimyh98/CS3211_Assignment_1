@@ -8,7 +8,6 @@ void Engine::Accept(ClientConnection connection) {
     std::thread thread{ &Engine::ConnectionThread, this,
                        std::move(connection) };
     thread.detach();
-    //std::cout << "New connection accepted." << std::endl;
 }
 
 bool comparePriceAsc(input i1, input i2) {
@@ -37,25 +36,31 @@ void Engine::ConnectionThread(ClientConnection connection) {
         // provided in the Output class:
         switch (input.type) {
         case input_cancel:
-            //std::cout << "Got cancel: ID: " << input.order_id << std::endl;
             tryCancel(input, input_time);
             break;
         case input_buy:
-            //std::cout << "Got order: " << static_cast<char>(input.type) << " "
-            //    << input.instrument << " x " << input.count << " @ "
-            //    << input.price << " ID: " << input.order_id
-            //    << std::endl;
-            //std::cout << "Comparing..." << std::endl;
-            tryBuy(input, input_time);
-            break;
+            if (lastOrderType == input_sell)
+            {
+                std::unique_lock<std::mutex> switchlock(switch_mutex);
+                tryBuy(input, input_time);
+                break;
+            }
+            else 
+            {
+                tryBuy(input, input_time);
+                break;
+            }
         case input_sell:
-            //std::cout << "Got order: " << static_cast<char>(input.type) << " "
-            //    << input.instrument << " x " << input.count << " @ "
-            //    << input.price << " ID: " << input.order_id
-            //    << std::endl;
-            //std::cout << "Comparing..." << std::endl;
-            trySell(input, input_time);
-            break;
+            if (lastOrderType == input_buy)
+            {
+                std::unique_lock<std::mutex> switchlock(switch_mutex);
+                tryBuy(input, input_time);
+                break;
+            }
+            else {
+                trySell(input, input_time);
+                break;
+            }
         default:
             break;
         }
@@ -63,71 +68,70 @@ void Engine::ConnectionThread(ClientConnection connection) {
 }
 
 void Engine::trySell(input sell_order, int64_t input_time) {
-    std::unique_lock<std::mutex> sellLock(sell_mutex);
-
     // Matching sell_order to all possible buy_orders
-    for (input& buy_order : buy_vector) {
+    for (Node& buy_node : buy_vector) {
 
-        if (strcmp(sell_order.instrument, buy_order.instrument) == 0 &&
-            sell_order.count > 0 && buy_order.count > 0 &&
-            buy_order.price >= sell_order.price) {
+        std::unique_lock<std::mutex> nlock{buy_node.node_mutex};
 
-            //std::cout << "Match found." << std::endl;
-            buy_map[buy_order.order_id] += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
+        if (strcmp(sell_order.instrument, buy_node.i.instrument) == 0 &&
+            sell_order.count > 0 && buy_node.i.count > 0 &&
+            buy_node.i.price >= sell_order.price) {
 
-            if (sell_order.count > buy_order.count) {
+            buy_node.exec_id += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
+
+            if (sell_order.count > buy_node.i.count) {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
-                    sell_order.price, buy_order.count, input_time, CurrentTimestamp());
+                Output::OrderExecuted(buy_node.i.order_id, sell_order.order_id, buy_node.exec_id,
+                    sell_order.price, buy_node.i.count, input_time, CurrentTimestamp());
 
-                sell_order.count -= buy_order.count;
-                buy_order.count = 0;
+                sell_order.count -= buy_node.i.count;
+                buy_node.i.count = 0;
             }
-            else if (sell_order.count == buy_order.count) {
+            else if (sell_order.count == buy_node.i.count) {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
-                    sell_order.price, buy_order.count, input_time, CurrentTimestamp());
+                Output::OrderExecuted(buy_node.i.order_id, sell_order.order_id, buy_node.exec_id,
+                    sell_order.price, buy_node.i.count, input_time, CurrentTimestamp());
 
-                buy_order.count = 0;
+                buy_node.i.count = 0;
                 return;
             }
             else {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(buy_order.order_id, sell_order.order_id, buy_map[buy_order.order_id],
+                Output::OrderExecuted(buy_node.i.order_id, sell_order.order_id, buy_node.exec_id,
                     sell_order.price, sell_order.count, input_time, CurrentTimestamp());
 
-                buy_order.count -= sell_order.count;
+                buy_node.i.count -= sell_order.count;
                 return;
             }
         }
-    }
 
-    //Buy vector cleanup
-    for (auto it = buy_vector.begin(); it != buy_vector.end();) {
-        if (it->count == 0) {
-            it = buy_vector.erase(it);
-            //std::cout << "ERASE THE WEAK" << std::endl;
-        }
-        else {
-            ++it;
-        }
-    }
-
-    sellLock.unlock();
-    //std::cout << "Storing remainder..." << std::endl;
-    std::unique_lock<std::mutex> buyLock(buy_mutex);
-
-    // Checking if a particular Sell Order is being registered for the FIRST TIME
-    for (input& i : sell_vector) {
-        if (i.order_id == sell_order.order_id) {
-            sell_map.insert({ sell_order.order_id, 0 });
-            break;
-        }
+        nlock.unlock();
     }
 
     // Insert into position
-    sell_vector.insert(std::lower_bound(sell_vector.begin(), sell_vector.end(), sell_order, comparePriceAsc), sell_order);
-    buyLock.unlock();
+    Node sell_node = Node(sell_order);
+    for (auto it = sell_vector.begin(); it != sell_vector.end();)
+    {
+        std::unique_lock<std::mutex> lk1{it->node_mutex, std::defer_lock};
+        std::unique_lock<std::mutex> lk2{std::next(it)->node_mutex, std::defer_lock};
+        std::try_lock(lk1, lk2);
+
+        if (std::next(it) == sell_vector.end() ||
+            (it->i.price <= sell_order.price && std::next(it)->i.price > sell_order.price))
+        {
+            sell_vector.insert(it, sell_node);
+            break;
+        }
+        else 
+        {
+            ++it;
+        }
+
+        lk1.unlock();
+        lk2.unlock();
+    }
+
+    //sell_vector.insert(std::lower_bound(sell_vector.begin(), sell_vector.end(), sell_order, comparePriceAsc), sell_order);
 
     std::unique_lock<std::mutex> printLock(print_mutex);
     Output::OrderAdded(sell_order.order_id, sell_order.instrument, sell_order.price,
@@ -136,71 +140,71 @@ void Engine::trySell(input sell_order, int64_t input_time) {
 }
 
 void Engine::tryBuy(input buy_order, int64_t input_time) {
-    std::unique_lock<std::mutex> buyLock(buy_mutex);
-
     // Matching buy_order to all possible sell_orders
-    for (input& sell_order : sell_vector) {
+    for (Node& sell_node : sell_vector) {
 
-        if (strcmp(buy_order.instrument, sell_order.instrument) == 0 &&
-            buy_order.count > 0 && sell_order.count > 0 &&
-            buy_order.price >= sell_order.price) {
+        std::unique_lock<std::mutex> nlock{sell_node.node_mutex};
+
+        if (strcmp(buy_order.instrument, sell_node.i.instrument) == 0 &&
+            buy_order.count > 0 && sell_node.i.count > 0 &&
+            buy_order.price >= sell_node.i.price) {
 
             //std::cout << "Match found." << std::endl;
-            sell_map[sell_order.order_id] += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
+            sell_node.exec_id += 1;       // increment execution order of sell_map (since that was RESTING ORDER)
 
-            if (buy_order.count > sell_order.count) {
+            if (buy_order.count > sell_node.i.count) {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
-                    sell_order.price, sell_order.count, input_time, CurrentTimestamp());
+                Output::OrderExecuted(sell_node.i.order_id, buy_order.order_id, sell_node.exec_id,
+                    sell_node.i.price, sell_node.i.count, input_time, CurrentTimestamp());
 
-                buy_order.count -= sell_order.count;
-                sell_order.count = 0;
+                buy_order.count -= sell_node.i.count;
+                sell_node.i.count = 0;
             }
-            else if (buy_order.count == sell_order.count) {
+            else if (buy_order.count == sell_node.i.count) {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
-                    sell_order.price, sell_order.count, input_time, CurrentTimestamp());
+                Output::OrderExecuted(sell_node.i.order_id, buy_order.order_id, sell_node.exec_id,
+                    sell_node.i.price, sell_node.i.count, input_time, CurrentTimestamp());
 
-                sell_order.count = 0;
+                sell_node.i.count = 0;
                 return;
             }
             else {
                 std::unique_lock<std::mutex> printLock(print_mutex);
-                Output::OrderExecuted(sell_order.order_id, buy_order.order_id, sell_map[sell_order.order_id],
-                    sell_order.price, buy_order.count, input_time, CurrentTimestamp());
+                Output::OrderExecuted(sell_node.i.order_id, buy_order.order_id, sell_node.exec_id,
+                    sell_node.i.price, buy_order.count, input_time, CurrentTimestamp());
 
-                sell_order.count -= buy_order.count;
+                sell_node.i.count -= buy_order.count;
                 return;
             }
         }
-    }
 
-    //Sell vector cleanup
-    for (auto it = sell_vector.begin(); it != sell_vector.end();) {
-        if (it->count == 0) {
-            it = sell_vector.erase(it);
-            //std::cout << "ERASE THE WEAK" << std::endl;
-        }
-        else {
-            ++it;
-        }
-    }
-
-    buyLock.unlock();
-    //std::cout << "Storing remainder..." << std::endl;
-    std::unique_lock<std::mutex> sellLock(sell_mutex);
-
-    // Checking if a particular Buy Order is being registered for the FIRST TIME
-    for (input& i : buy_vector) {
-        if (i.order_id == buy_order.order_id) {
-            buy_map.insert({ buy_order.order_id, 0 });
-            break;
-        }
+        nlock.unlock();
     }
 
     // Insert into position
-    buy_vector.insert(std::upper_bound(buy_vector.begin(), buy_vector.end(), buy_order, comparePriceDesc), buy_order);
-    sellLock.unlock();
+    Node buy_node = Node(buy_order);
+    for (auto it = buy_vector.begin(); it != buy_vector.end();)
+    {
+        std::unique_lock<std::mutex> lk1{ it->node_mutex, std::defer_lock };
+        std::unique_lock<std::mutex> lk2{ std::next(it)->node_mutex, std::defer_lock };
+        std::try_lock(lk1, lk2);
+
+        if (std::next(it) == buy_vector.end() ||
+            (it->i.price >= buy_order.price && std::next(it)->i.price < buy_order.price))
+        {
+            buy_vector.insert(it, buy_node);
+            break;
+        }
+        else
+        {
+            ++it;
+        }
+
+        lk1.unlock();
+        lk2.unlock();
+    }
+
+    //buy_vector.insert(std::upper_bound(buy_vector.begin(), buy_vector.end(), buy_order, comparePriceDesc), buy_order);
 
     std::unique_lock<std::mutex> printLock(print_mutex);
     Output::OrderAdded(buy_order.order_id, buy_order.instrument, buy_order.price,
@@ -210,39 +214,8 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
 
 void Engine::tryCancel(input cancel_order, int64_t input_time) {
 
-    bool isSuccessful = false;
+    // TODO
 
-    for (auto it = sell_vector.begin(); it != sell_vector.end();) {
-        if (cancel_order.order_id == it->order_id) {
-            isSuccessful = true;
-            it = sell_vector.erase(it);
-        }
-        else {
-            ++it;
-        }
-    }
-
-    for (auto it = buy_vector.begin(); it != buy_vector.end();) {
-        if (isSuccessful)
-            break;
-
-        if (cancel_order.order_id == it->order_id) {
-            isSuccessful = true;
-            it = buy_vector.erase(it);
-            break;
-        }
-        else {
-            ++it;
-        }
-    }
-
-    //if (isSuccessful) {
-    //    std::cout << "Cancel successful." << std::endl;
-    //}
-    //else {
-    //    std::cout << "Cancel rejected." << std::endl;
-    //}
-
-    Output::OrderDeleted(cancel_order.order_id, isSuccessful,
+    Output::OrderDeleted(cancel_order.order_id, true,
         input_time, CurrentTimestamp());
 }
