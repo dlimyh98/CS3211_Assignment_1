@@ -43,6 +43,7 @@ void Engine::ConnectionThread(ClientConnection connection) {
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
                 tryBuy(input, input_time);
+                lastOrderType = input_buy;
                 break;
             }
             else 
@@ -54,7 +55,8 @@ void Engine::ConnectionThread(ClientConnection connection) {
             if (lastOrderType == input_buy)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
-                tryBuy(input, input_time);
+                trySell(input, input_time);
+                lastOrderType = input_sell;
                 break;
             }
             else {
@@ -72,6 +74,7 @@ void Engine::trySell(input sell_order, int64_t input_time) {
     for (Node& buy_node : buy_vector) {
 
         std::unique_lock<std::mutex> nlock{buy_node.node_mutex};
+        std::cout << "Buy node locked" << std::endl;
 
         if (strcmp(sell_order.instrument, buy_node.i.instrument) == 0 &&
             sell_order.count > 0 && buy_node.i.count > 0 &&
@@ -126,6 +129,8 @@ void Engine::trySell(input sell_order, int64_t input_time) {
         {
             ++it;
         }
+
+        std::cout << "Order " << sell_order.count << " added" << std::endl;
 
         lk1.unlock();
         lk2.unlock();

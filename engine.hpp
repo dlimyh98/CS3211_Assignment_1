@@ -24,6 +24,19 @@ public:
         this->i = input;
         this->exec_id = 0;
     }
+
+    // Copy Constructor
+    Node(const Node& other) { 
+        this->i = other.i; 
+        this->exec_id = other.exec_id;
+    }
+
+    // Copy-Assignment Constructor
+    Node& operator=(const Node& other) {
+        this->i = other.i;
+        this->exec_id = other.exec_id;
+        return *this;
+    }
 };
 
 class Engine {
