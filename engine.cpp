@@ -39,30 +39,28 @@ void Engine::ConnectionThread(ClientConnection connection) {
             tryCancel(input, input_time);
             break;
         case input_buy:
-            if (lastOrderType == input_sell)
+            if (lastOrderType.load(std::memory_order_relaxed) == input_sell)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
                 tryBuy(input, input_time);
-                lastOrderType = input_buy;
-                break;
+                lastOrderType.store(input_buy, std::memory_order_relaxed);
             }
             else 
             {
                 tryBuy(input, input_time);
-                break;
             }
+            break;
         case input_sell:
-            if (lastOrderType == input_buy)
+            if (lastOrderType.load(std::memory_order_relaxed) == input_buy)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
                 trySell(input, input_time);
-                lastOrderType = input_sell;
-                break;
+                lastOrderType.store(input_sell, std::memory_order_relaxed);
             }
             else {
                 trySell(input, input_time);
-                break;
             }
+            break;
         default:
             break;
         }
@@ -72,9 +70,7 @@ void Engine::ConnectionThread(ClientConnection connection) {
 void Engine::trySell(input sell_order, int64_t input_time) {
     // Matching sell_order to all possible buy_orders
     for (Node& buy_node : buy_vector) {
-
-        std::unique_lock<std::mutex> nlock{buy_node.node_mutex};
-        std::cout << "Buy node locked" << std::endl;
+        //std::unique_lock<std::mutex> nlock{node_mutexes[node_index]};
 
         if (strcmp(sell_order.instrument, buy_node.i.instrument) == 0 &&
             sell_order.count > 0 && buy_node.i.count > 0 &&
@@ -108,32 +104,27 @@ void Engine::trySell(input sell_order, int64_t input_time) {
             }
         }
 
-        nlock.unlock();
+        //nlock.unlock();
     }
 
     // Insert into position
     Node sell_node = Node(sell_order);
     for (auto it = sell_vector.begin(); it != sell_vector.end();)
     {
-        std::unique_lock<std::mutex> lk1{it->node_mutex, std::defer_lock};
-        std::unique_lock<std::mutex> lk2{std::next(it)->node_mutex, std::defer_lock};
-        std::try_lock(lk1, lk2);
+        //std::unique_lock<std::mutex> lk1{node_mutexes[node_index], std::defer_lock};
+        //std::unique_lock<std::mutex> lk2{node_mutexes[node_index + 1], std::defer_lock};
+        //std::try_lock(lk1, lk2);
 
         if (std::next(it) == sell_vector.end() ||
             (it->i.price <= sell_order.price && std::next(it)->i.price > sell_order.price))
         {
-            sell_vector.insert(it, sell_node);
+            sell_vector.emplace(it, sell_node);
             break;
         }
         else 
         {
             ++it;
         }
-
-        std::cout << "Order " << sell_order.count << " added" << std::endl;
-
-        lk1.unlock();
-        lk2.unlock();
     }
 
     //sell_vector.insert(std::lower_bound(sell_vector.begin(), sell_vector.end(), sell_order, comparePriceAsc), sell_order);
@@ -148,7 +139,7 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
     // Matching buy_order to all possible sell_orders
     for (Node& sell_node : sell_vector) {
 
-        std::unique_lock<std::mutex> nlock{sell_node.node_mutex};
+        //std::unique_lock<std::mutex> nlock{ node_mutexes[node_index] };
 
         if (strcmp(buy_order.instrument, sell_node.i.instrument) == 0 &&
             buy_order.count > 0 && sell_node.i.count > 0 &&
@@ -182,22 +173,20 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
                 return;
             }
         }
-
-        nlock.unlock();
     }
 
     // Insert into position
     Node buy_node = Node(buy_order);
     for (auto it = buy_vector.begin(); it != buy_vector.end();)
     {
-        std::unique_lock<std::mutex> lk1{ it->node_mutex, std::defer_lock };
-        std::unique_lock<std::mutex> lk2{ std::next(it)->node_mutex, std::defer_lock };
-        std::try_lock(lk1, lk2);
+        //std::unique_lock<std::mutex> lk1{ node_mutexes[node_index], std::defer_lock };
+        //std::unique_lock<std::mutex> lk2{ node_mutexes[node_index + 1], std::defer_lock };
+        //std::try_lock(lk1, lk2);
 
         if (std::next(it) == buy_vector.end() ||
             (it->i.price >= buy_order.price && std::next(it)->i.price < buy_order.price))
         {
-            buy_vector.insert(it, buy_node);
+            buy_vector.emplace(it, buy_node);
             break;
         }
         else
@@ -205,8 +194,8 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
             ++it;
         }
 
-        lk1.unlock();
-        lk2.unlock();
+        //lk1.unlock();
+        //lk2.unlock();
     }
 
     //buy_vector.insert(std::upper_bound(buy_vector.begin(), buy_vector.end(), buy_order, comparePriceDesc), buy_order);
