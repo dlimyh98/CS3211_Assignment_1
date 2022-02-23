@@ -1,5 +1,5 @@
-./engine socket &
- 
+./engine socket & sleep 1
+
 for file in ./test1_files/*
 do
 bash $file | ./client socket &

@@ -1,4 +1,4 @@
-./engine socket &
+./engine socket & sleep 1
 
 for file in ./test3_files/*
 do
