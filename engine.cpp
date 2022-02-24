@@ -140,24 +140,26 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
 }
 
 bool OrderLinkedList::tryCancel(input i) {
-
     // Prep-work to begin traversing down list
     Node* traversal_begin = head_;
     std::unique_lock<std::mutex> traversal_begin_lk(traversal_begin->node_mutex);
     Node* traversal = traversal_begin->next;
     std::unique_lock<std::mutex> traversal_lk(traversal->node_mutex);
 
-    if (traversal->i.order_id == i.order_id) {
-        traversal->i.count = 0;
-        return true;
-    } else {
-        // Swap the locks and continue down the list
-        traversal_begin = traversal;
-        traversal = traversal->next;
-        traversal_begin_lk.swap(traversal_lk);
-        traversal_lk = std::unique_lock<std::mutex>(traversal->node_mutex);
+    // Traverse down list
+    while (traversal != tail_) {
+        if (traversal->i.order_id == i.order_id) {
+            traversal->i.count = 0;
+            return true;
+        }
+        else {
+            // Swap the locks and continue down the list
+            traversal_begin = traversal;
+            traversal = traversal->next;
+            traversal_begin_lk.swap(traversal_lk);
+            traversal_lk = std::unique_lock<std::mutex>(traversal->node_mutex);
+        }
     }
-
     return false;
 }
 

@@ -64,6 +64,19 @@ public:
     void tryInsert(input i, int64_t input_time);
     input tryMatch(input i, int64_t input_time);
     bool tryCancel(input i);
+
+    ~OrderLinkedList() {
+        Node* current = head_;
+        Node* traversal;
+
+        while (current != nullptr) {
+            std::unique_lock<std::mutex> current_lk(current->node_mutex);   // lock current node
+            traversal = current->next;                                      // move traversal pointer
+            free(current);                                                  // free *current
+        }
+        head_ = nullptr;
+        tail_ = nullptr;
+    }
 };
 
 class Engine {
