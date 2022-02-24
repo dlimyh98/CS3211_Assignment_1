@@ -58,6 +58,9 @@ public:
         head_ = new Node({input_buy, 0, 0, 0, "0"}, tail_);
     }
 
+    OrderLinkedList(const OrderLinkedList&) = delete;
+    OrderLinkedList& operator=(const OrderLinkedList&) = delete;
+
     void tryInsert(input i, int64_t input_time);
     input tryMatch(input i, int64_t input_time);
     bool tryCancel(input i);

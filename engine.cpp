@@ -180,8 +180,6 @@ void Engine::ConnectionThread(ClientConnection connection) {
         }
 
         int64_t input_time = CurrentTimestamp();
-        // Functions for printing output actions in the prescribed format are
-        // provided in the Output class:
         switch (input.type) {
         case input_cancel:
             tryCancel(input, input_time);
