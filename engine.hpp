@@ -75,8 +75,6 @@ class Engine {
 
 public:
     void Accept(ClientConnection);
-    void trySell(input sell_order, int64_t input_time);
-    void tryBuy(input buy_order, int64_t input_time);
     void tryCancel(input cancel_order, int64_t input_time);
 
     std::atomic<input_type> lastOrderType{ input_none };
