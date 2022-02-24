@@ -30,7 +30,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
 
     if (sort_asc)
     {
-        while (i.price <= node->i.price && node != tail_) {
+        while (i.price >= node->i.price && node != tail_) {
             prev = node;
             node = node->next;
             prev_lk.swap(node_lk);
@@ -39,7 +39,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
     }
     else 
     {
-        while (i.price >= node->i.price && node != tail_) {
+        while (i.price <= node->i.price && node != tail_) {
             prev = node;
             node = node->next;
             prev_lk.swap(node_lk);
@@ -161,8 +161,6 @@ void Engine::ConnectionThread(ClientConnection connection) {
         }
 
         int64_t input_time = CurrentTimestamp();
-        // Functions for printing output actions in the prescribed format are
-        // provided in the Output class:
         switch (input.type) {
         case input_cancel:
             tryCancel(input, input_time);
