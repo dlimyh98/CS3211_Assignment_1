@@ -44,7 +44,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
 
     std::unique_lock<std::mutex> printLock(print_mutex);
     Output::OrderAdded(i.order_id, i.instrument, i.price,
-        i.count, true,
+        i.count, (i.type == input_sell),
         input_time, CurrentTimestamp());
 }
 
