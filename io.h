@@ -13,7 +13,7 @@ extern "C" {
 #include <stdint.h>
 #endif
 
-enum input_type { input_buy = 'B', input_sell = 'S', input_cancel = 'C' };
+enum input_type { input_buy = 'B', input_sell = 'S', input_cancel = 'C', input_none = 'N' };
 
 struct input {
   enum input_type type;

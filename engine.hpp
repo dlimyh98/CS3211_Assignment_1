@@ -59,26 +59,26 @@ public:
     }
 
     void tryInsert(input i, int64_t input_time);
-    void tryMatch(input i, int64_t input_time);
+    input tryMatch(input i, int64_t input_time);
 };
 
 class Engine {
-  void ConnectionThread(ClientConnection);
-  std::vector<Node> buy_vector;
-  std::vector<Node> sell_vector;
-  //OrderLinkedList buy_orders;
-  //OrderLinkedList sell_orders;
+    void ConnectionThread(ClientConnection);
+    std::vector<Node> buy_vector;
+    std::vector<Node> sell_vector;
+    OrderLinkedList buy_orders{false};
+    OrderLinkedList sell_orders{true};
 
- public:
-  void Accept(ClientConnection);
-  void trySell(input sell_order, int64_t input_time);
-  void tryBuy(input buy_order, int64_t input_time);
-  void tryCancel(input cancel_order, int64_t input_time);
+public:
+    void Accept(ClientConnection);
+    void trySell(input sell_order, int64_t input_time);
+    void tryBuy(input buy_order, int64_t input_time);
+    void tryCancel(input cancel_order, int64_t input_time);
 
-  std::atomic<input_type> lastOrderType{input_buy};
+    std::atomic<input_type> lastOrderType{ input_none };
 
-  std::mutex switch_mutex;
-  std::mutex print_mutex;
+    std::mutex switch_mutex;
+    std::mutex print_mutex;
 };
 
 inline static std::chrono::microseconds::rep CurrentTimestamp() noexcept {

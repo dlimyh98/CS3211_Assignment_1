@@ -19,6 +19,9 @@ bool comparePriceDesc(input i1, input i2) {
 }
 
 void OrderLinkedList::tryInsert(input i, int64_t input_time) {
+    if (i.count <= 0)
+        return;
+
     Node* new_node = new Node(i);
     Node* prev = head_;
     std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
@@ -53,7 +56,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
         input_time, CurrentTimestamp());
 }
 
-void OrderLinkedList::tryMatch(input i, int64_t input_time) {
+input OrderLinkedList::tryMatch(input i, int64_t input_time) {
 
     Node* prev = head_;
     std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
@@ -83,16 +86,18 @@ void OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         i.price, node->i.count, input_time, CurrentTimestamp());
 
+                    i.count = 0;
                     node->i.count = 0;
-                    return;
+                    return i;
                 }
                 else {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         i.price, i.count, input_time, CurrentTimestamp());
 
+                    i.count = 0;
                     node->i.count -= i.count;
-                    return;
+                    return i;
                 }
             }
         }
@@ -118,16 +123,18 @@ void OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         i.price, node->i.count, input_time, CurrentTimestamp());
 
+                    i.count = 0;
                     node->i.count = 0;
-                    return;
+                    return i;
                 }
                 else {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         i.price, i.count, input_time, CurrentTimestamp());
 
+                    i.count = 0;
                     node->i.count -= i.count;
-                    return;
+                    return i;
                 }
             }
         }
@@ -137,9 +144,8 @@ void OrderLinkedList::tryMatch(input i, int64_t input_time) {
         prev_lk.swap(node_lk);
         node_lk = std::unique_lock<std::mutex>(node->node_mutex);
     }
-    if (node == tail_) {
-        return;
-    }
+    
+    return i;
 }
 
 void Engine::ConnectionThread(ClientConnection connection) {
@@ -165,23 +171,23 @@ void Engine::ConnectionThread(ClientConnection connection) {
             if (lastOrderType.load(std::memory_order_relaxed) == input_sell)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
-                tryBuy(input, input_time);
+                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time), input_time);
                 lastOrderType.store(input_buy, std::memory_order_relaxed);
             }
             else 
             {
-                tryBuy(input, input_time);
+                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time), input_time);
             }
             break;
         case input_sell:
             if (lastOrderType.load(std::memory_order_relaxed) == input_buy)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
-                trySell(input, input_time);
+                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
                 lastOrderType.store(input_sell, std::memory_order_relaxed);
             }
             else {
-                trySell(input, input_time);
+                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
             }
             break;
         default:
