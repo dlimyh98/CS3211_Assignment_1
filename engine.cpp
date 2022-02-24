@@ -148,7 +148,7 @@ bool OrderLinkedList::tryCancel(input i) {
 
     // Traverse down list
     while (traversal != tail_) {
-        if (traversal->i.order_id == i.order_id && traversal->i.count == 0) {
+        if (traversal->i.order_id == i.order_id && traversal->i.count > 0) {
             traversal->i.count = 0;
             return true;
         }
