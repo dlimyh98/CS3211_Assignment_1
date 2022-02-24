@@ -60,6 +60,7 @@ public:
 
     void tryInsert(input i, int64_t input_time);
     input tryMatch(input i, int64_t input_time);
+    bool tryCancel(input i);
 };
 
 class Engine {

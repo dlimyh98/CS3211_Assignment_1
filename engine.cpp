@@ -30,7 +30,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
 
     if (sort_asc)
     {
-        while (i.price <= node->i.price && node != tail_) {
+        while (i.price >= node->i.price && node != tail_) {
             prev = node;
             node = node->next;
             prev_lk.swap(node_lk);
@@ -39,7 +39,7 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
     }
     else 
     {
-        while (i.price >= node->i.price && node != tail_) {
+        while (i.price <= node->i.price && node != tail_) {
             prev = node;
             node = node->next;
             prev_lk.swap(node_lk);
@@ -146,6 +146,25 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
     }
     
     return i;
+}
+
+bool OrderLinkedList::tryCancel(input i) {
+
+    // Prep-work to begin traversing down list
+    Node* traversal_begin = head_;
+    std::unique_lock<std::mutex> traversal_begin_lk(traversal_begin->node_mutex);
+    Node* traversal = traversal->next;
+    std::unique_lock<std::mutex> traversal_lk(traversal->node_mutex);
+
+    if (traversal->i.order_id == i.order_id) {
+        return true;
+    } else {
+        // Swap the locks and continue down the list
+        traversal_begin = traversal;
+        traversal = traversal->next;
+        traversal_begin_lk.swap(traversal_lk);
+        traversal_lk = std::unique_lock<std::mutex>(traversal->node_mutex);
+    }
 }
 
 void Engine::ConnectionThread(ClientConnection connection) {
@@ -336,9 +355,23 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
 }
 
 void Engine::tryCancel(input cancel_order, int64_t input_time) {
+    bool isFoundBuy = false;
+    bool isFoundSell = false;
 
-    // TODO
-
-    Output::OrderDeleted(cancel_order.order_id, true,
-        input_time, CurrentTimestamp());
+    bool isFoundBuy = buy_orders.tryCancel(cancel_order);
+    if (isFoundBuy) {
+        std::unique_lock<std::mutex> printLock(print_mutex);
+        Output::OrderDeleted(cancel_order.order_id, isFoundBuy, input_time, CurrentTimestamp());
+    }
+    else {
+        isFoundSell = sell_orders.tryCancel(cancel_order);
+        if (isFoundSell) {
+            std::unique_lock<std::mutex> printLock(print_mutex);
+            Output::OrderDeleted(cancel_order.order_id, isFoundSell, input_time, CurrentTimestamp());
+        }
+        else {
+            std::unique_lock<std::mutex> printLock(print_mutex);
+            Output::OrderDeleted(cancel_order.order_id, false, input_time, CurrentTimestamp());
+        }
+    }
 }
