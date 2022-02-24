@@ -18,6 +18,129 @@ bool comparePriceDesc(input i1, input i2) {
     return i1.price > i2.price;
 }
 
+void OrderLinkedList::tryInsert(input i, int64_t input_time) {
+    Node* new_node = new Node(i);
+    Node* prev = head_;
+    std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
+    Node* node = prev->next;
+    std::unique_lock<std::mutex> node_lk(node->node_mutex);
+
+    if (sort_asc)
+    {
+        while (i.price <= node->i.price && node != tail_) {
+            prev = node;
+            node = node->next;
+            prev_lk.swap(node_lk);
+            node_lk = std::unique_lock<std::mutex>(node->node_mutex);
+        }
+    }
+    else 
+    {
+        while (i.price >= node->i.price && node != tail_) {
+            prev = node;
+            node = node->next;
+            prev_lk.swap(node_lk);
+            node_lk = std::unique_lock<std::mutex>(node->node_mutex);
+        }
+    }
+
+    new_node->next = node;
+    prev->next = new_node;
+
+    std::unique_lock<std::mutex> printLock(print_mutex);
+    Output::OrderAdded(i.order_id, i.instrument, i.price,
+        i.count, true,
+        input_time, CurrentTimestamp());
+}
+
+void OrderLinkedList::tryMatch(input i, int64_t input_time) {
+
+    Node* prev = head_;
+    std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
+    Node* node = prev->next;
+    std::unique_lock<std::mutex> node_lk(node->node_mutex);
+    while (node != tail_) {
+
+        // For sell list, node refers to sell node and i refers to buy input
+        if (sort_asc) {
+
+            if (strcmp(i.instrument, node->i.instrument) == 0 &&
+                i.count > 0 && node->i.count > 0 &&
+                i.price >= node->i.price) {
+
+                node->exec_id += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
+
+                if (i.count > node->i.count) {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, node->i.count, input_time, CurrentTimestamp());
+
+                    i.count -= node->i.count;
+                    node->i.count = 0;
+                }
+                else if (i.count == node->i.count) {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, node->i.count, input_time, CurrentTimestamp());
+
+                    node->i.count = 0;
+                    return;
+                }
+                else {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, i.count, input_time, CurrentTimestamp());
+
+                    node->i.count -= i.count;
+                    return;
+                }
+            }
+        }
+        // For buy list, node refers to buy node and i refers to sell input
+        else {
+
+            if (strcmp(i.instrument, node->i.instrument) == 0 &&
+                i.count > 0 && node->i.count > 0 &&
+                node->i.price >= i.price) {
+
+                node->exec_id += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
+
+                if (i.count > node->i.count) {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, node->i.count, input_time, CurrentTimestamp());
+
+                    i.count -= node->i.count;
+                    node->i.count = 0;
+                }
+                else if (i.count == node->i.count) {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, node->i.count, input_time, CurrentTimestamp());
+
+                    node->i.count = 0;
+                    return;
+                }
+                else {
+                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
+                        i.price, i.count, input_time, CurrentTimestamp());
+
+                    node->i.count -= i.count;
+                    return;
+                }
+            }
+        }
+
+        prev = node;
+        node = node->next;
+        prev_lk.swap(node_lk);
+        node_lk = std::unique_lock<std::mutex>(node->node_mutex);
+    }
+    if (node == tail_) {
+        return;
+    }
+}
 
 void Engine::ConnectionThread(ClientConnection connection) {
     while (true) {

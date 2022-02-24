@@ -48,59 +48,18 @@ class OrderLinkedList {
 private:
     Node* head_;
     Node* tail_;
+    bool sort_asc;
 public:
+    std::mutex print_mutex;
     // Initialize head_ to point to tail_ (empty list).
-    OrderLinkedList() {
+    OrderLinkedList(bool sort_asc) {
+        this->sort_asc = sort_asc;
         tail_ = new Node({input_buy, 0, 0, 0, "0"});
         head_ = new Node({input_buy, 0, 0, 0, "0"}, tail_);
     }
 
-    /*
-    * Insert a node with value val at position pos.
-    *
-    * To ensure mutual exclusion, the locks of the current node and the
-    * previous nodes must be acquired for insertion to work. As soon as the
-    * locks are acquired the code does roughly the following:
-    *
-    *      | prev -> node | prev -> node | prev    node |
-    *      |              |          ^   |   v      ^   |
-    *      |   new_node   |   new_node   |   new_node   |
-    */
-    void tryInsert(input i, int pos) {
-        // TODO: Write code to check before inserting
-
-        Node* new_node = new Node(i);
-        Node* prev = head_;
-        std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
-        Node* node = prev->next;
-        std::unique_lock<std::mutex> node_lk(node->node_mutex);
-        for (int i = 0; i < pos && node != tail_; i++) {
-            prev = node;
-            node = node->next;
-            prev_lk.swap(node_lk);
-            node_lk = std::unique_lock<std::mutex>(node->node_mutex);
-        }
-        new_node->next = node;
-        prev->next = new_node;
-    }
-
-    void tryMatch(int pos) {
-        // TODO: Write code to match orders instead of just seeing values
-
-        Node* prev = head_;
-        std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
-        Node* node = prev->next;
-        std::unique_lock<std::mutex> node_lk(node->node_mutex);
-        for (int i = 0; i < pos && node != tail_; i++) {
-            prev = node;
-            node = node->next;
-            prev_lk.swap(node_lk);
-            node_lk = std::unique_lock<std::mutex>(node->node_mutex);
-        }
-        if (node == tail_) {
-            return;
-        }
-    }
+    void tryInsert(input i, int64_t input_time);
+    void tryMatch(input i, int64_t input_time);
 };
 
 class Engine {
