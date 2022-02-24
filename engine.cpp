@@ -57,7 +57,6 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
 }
 
 input OrderLinkedList::tryMatch(input i, int64_t input_time) {
-
     Node* prev = head_;
     std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
     Node* node = prev->next;
@@ -76,7 +75,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 if (i.count > node->i.count) {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, node->i.count, input_time, CurrentTimestamp());
+                        node->i.price, node->i.count, input_time, CurrentTimestamp());
 
                     i.count -= node->i.count;
                     node->i.count = 0;
@@ -84,7 +83,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 else if (i.count == node->i.count) {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, node->i.count, input_time, CurrentTimestamp());
+                        node->i.price, node->i.count, input_time, CurrentTimestamp());
 
                     i.count = 0;
                     node->i.count = 0;
@@ -93,7 +92,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 else {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, i.count, input_time, CurrentTimestamp());
+                        node->i.price, i.count, input_time, CurrentTimestamp());
 
                     i.count = 0;
                     node->i.count -= i.count;
@@ -113,7 +112,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 if (i.count > node->i.count) {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, node->i.count, input_time, CurrentTimestamp());
+                        node->i.price, node->i.count, input_time, CurrentTimestamp());
 
                     i.count -= node->i.count;
                     node->i.count = 0;
@@ -121,7 +120,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 else if (i.count == node->i.count) {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, node->i.count, input_time, CurrentTimestamp());
+                        node->i.price, node->i.count, input_time, CurrentTimestamp());
 
                     i.count = 0;
                     node->i.count = 0;
@@ -130,7 +129,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 else {
                     std::unique_lock<std::mutex> printLock(print_mutex);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
-                        i.price, i.count, input_time, CurrentTimestamp());
+                        node->i.price, i.count, input_time, CurrentTimestamp());
 
                     i.count = 0;
                     node->i.count -= i.count;
@@ -153,7 +152,7 @@ bool OrderLinkedList::tryCancel(input i) {
     // Prep-work to begin traversing down list
     Node* traversal_begin = head_;
     std::unique_lock<std::mutex> traversal_begin_lk(traversal_begin->node_mutex);
-    Node* traversal = traversal->next;
+    Node* traversal = traversal_begin->next;
     std::unique_lock<std::mutex> traversal_lk(traversal->node_mutex);
 
     if (traversal->i.order_id == i.order_id) {
@@ -166,6 +165,8 @@ bool OrderLinkedList::tryCancel(input i) {
         traversal_begin_lk.swap(traversal_lk);
         traversal_lk = std::unique_lock<std::mutex>(traversal->node_mutex);
     }
+
+    return false;
 }
 
 void Engine::ConnectionThread(ClientConnection connection) {
@@ -354,7 +355,6 @@ void Engine::tryBuy(input buy_order, int64_t input_time) {
 }
 
 void Engine::tryCancel(input cancel_order, int64_t input_time) {
-    bool isFoundBuy = false;
     bool isFoundSell = false;
 
     bool isFoundBuy = buy_orders.tryCancel(cancel_order);
