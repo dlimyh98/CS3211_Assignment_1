@@ -187,11 +187,11 @@ void Engine::ConnectionThread(ClientConnection connection) {
             tryCancel(input, input_time);
             break;
         case input_buy:
-            if (lastOrderType.load(std::memory_order_relaxed) == input_sell)
+            if (lastOrderType.load(std::memory_order_acquire) == input_sell)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
                 buy_orders.tryInsert(sell_orders.tryMatch(input, input_time), input_time);
-                lastOrderType.store(input_buy, std::memory_order_relaxed);
+                lastOrderType.store(input_buy, std::memory_order_release);
             }
             else 
             {
@@ -199,11 +199,11 @@ void Engine::ConnectionThread(ClientConnection connection) {
             }
             break;
         case input_sell:
-            if (lastOrderType.load(std::memory_order_relaxed) == input_buy)
+            if (lastOrderType.load(std::memory_order_acquire) == input_buy)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
                 sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
-                lastOrderType.store(input_sell, std::memory_order_relaxed);
+                lastOrderType.store(input_sell, std::memory_order_release);
             }
             else {
                 sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
