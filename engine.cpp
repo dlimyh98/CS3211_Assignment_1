@@ -157,6 +157,7 @@ bool OrderLinkedList::tryCancel(input i) {
     std::unique_lock<std::mutex> traversal_lk(traversal->node_mutex);
 
     if (traversal->i.order_id == i.order_id) {
+        traversal->i.count = 0;
         return true;
     } else {
         // Swap the locks and continue down the list
