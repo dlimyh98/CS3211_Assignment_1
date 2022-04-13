@@ -86,12 +86,13 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, i.count, input_time, CurrentTimestamp());
 
-                    i.count = 0;
                     node->i.count -= i.count;
+                    i.count = 0;
                     return i;
                 }
             }
         }
+
         // For buy list, node refers to buy node and i refers to sell input
         else {
 
@@ -123,8 +124,8 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, i.count, input_time, CurrentTimestamp());
 
-                    i.count = 0;
                     node->i.count -= i.count;
+                    i.count = 0;
                     return i;
                 }
             }
