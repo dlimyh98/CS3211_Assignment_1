@@ -10,7 +10,7 @@ void Engine::Accept(ClientConnection connection) {
     thread.detach();
 }
 
-void OrderLinkedList::tryInsert(input i, int64_t input_time) {
+void OrderLinkedList::tryInsert(input i, int64_t input_time, auto mutRef) {
     if (i.count <= 0)
         return;
 
@@ -42,13 +42,13 @@ void OrderLinkedList::tryInsert(input i, int64_t input_time) {
     new_node->next = node;
     prev->next = new_node;
 
-    std::unique_lock<std::mutex> printLock(print_mutex);
+    std::unique_lock<std::mutex> printLock(mutRef);
     Output::OrderAdded(i.order_id, i.instrument, i.price,
         i.count, (i.type == input_sell),
         input_time, CurrentTimestamp());
 }
 
-input OrderLinkedList::tryMatch(input i, int64_t input_time) {
+input OrderLinkedList::tryMatch(input i, int64_t input_time, auto mutRef) {
     Node* prev = head_;
     std::unique_lock<std::mutex> prev_lk(prev->node_mutex);
     Node* node = prev->next;
@@ -65,7 +65,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 node->exec_id += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
 
                 if (i.count > node->i.count) {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, node->i.count, input_time, CurrentTimestamp());
 
@@ -73,7 +73,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     node->i.count = 0;
                 }
                 else if (i.count == node->i.count) {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, node->i.count, input_time, CurrentTimestamp());
 
@@ -82,16 +82,17 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     return i;
                 }
                 else {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, i.count, input_time, CurrentTimestamp());
 
-                    i.count = 0;
                     node->i.count -= i.count;
+                    i.count = 0;
                     return i;
                 }
             }
         }
+
         // For buy list, node refers to buy node and i refers to sell input
         else {
 
@@ -102,7 +103,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                 node->exec_id += 1;       // increment execution order of buy_map (since that was the RESTING ORDER)
 
                 if (i.count > node->i.count) {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, node->i.count, input_time, CurrentTimestamp());
 
@@ -110,7 +111,7 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     node->i.count = 0;
                 }
                 else if (i.count == node->i.count) {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, node->i.count, input_time, CurrentTimestamp());
 
@@ -119,12 +120,12 @@ input OrderLinkedList::tryMatch(input i, int64_t input_time) {
                     return i;
                 }
                 else {
-                    std::unique_lock<std::mutex> printLock(print_mutex);
+                    std::unique_lock<std::mutex> printLock(mutRef);
                     Output::OrderExecuted(node->i.order_id, i.order_id, node->exec_id,
                         node->i.price, i.count, input_time, CurrentTimestamp());
 
-                    i.count = 0;
                     node->i.count -= i.count;
+                    i.count = 0;
                     return i;
                 }
             }
@@ -184,23 +185,23 @@ void Engine::ConnectionThread(ClientConnection connection) {
             if (lastOrderType.load(std::memory_order_acquire) == input_sell)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
-                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time), input_time);
+                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time, std::ref(print_mutex)), input_time, std::ref(print_mutex));
                 lastOrderType.store(input_buy, std::memory_order_release);
             }
             else 
             {
-                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time), input_time);
+                buy_orders.tryInsert(sell_orders.tryMatch(input, input_time, std::ref(print_mutex)), input_time, std::ref(print_mutex));
             }
             break;
         case input_sell:
             if (lastOrderType.load(std::memory_order_acquire) == input_buy)
             {
                 std::unique_lock<std::mutex> switchlock(switch_mutex);
-                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
+                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time, std::ref(print_mutex)), input_time, std::ref(print_mutex));
                 lastOrderType.store(input_sell, std::memory_order_release);
             }
             else {
-                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time), input_time);
+                sell_orders.tryInsert(buy_orders.tryMatch(input, input_time, std::ref(print_mutex)), input_time, std::ref(print_mutex));
             }
             break;
         default:

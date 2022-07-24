@@ -50,7 +50,6 @@ private:
     Node* tail_;
     bool sort_asc;
 public:
-    std::mutex print_mutex;
     // Initialize head_ to point to tail_ (empty list).
     OrderLinkedList(bool sort_asc) {
         this->sort_asc = sort_asc;
@@ -61,8 +60,8 @@ public:
     OrderLinkedList(const OrderLinkedList&) = delete;
     OrderLinkedList& operator=(const OrderLinkedList&) = delete;
 
-    void tryInsert(input i, int64_t input_time);
-    input tryMatch(input i, int64_t input_time);
+    void tryInsert(input i, int64_t input_time, auto mutRef);
+    input tryMatch(input i, int64_t input_time, auto mutRef);
     bool tryCancel(input i);
 
     ~OrderLinkedList() {
@@ -79,6 +78,7 @@ public:
     }
 };
 
+
 class Engine {
     void ConnectionThread(ClientConnection);
     std::vector<Node> buy_vector;
@@ -91,7 +91,6 @@ public:
     void tryCancel(input cancel_order, int64_t input_time);
 
     std::atomic<input_type> lastOrderType{ input_none };
-
     std::mutex switch_mutex;
     std::mutex print_mutex;
 };
